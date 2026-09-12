@@ -2,6 +2,7 @@ package com.example.postapi.repository
 
 import com.example.postapi.model.Post
 import java.sql.ResultSet
+import java.sql.Statement
 import java.sql.Timestamp
 import java.time.LocalDateTime
 import javax.sql.DataSource
@@ -29,10 +30,9 @@ class PostRepository(private val ds: DataSource) {
         val sql = """
             INSERT INTO posts (title, content, author_name, cover_image, view_count, like_count, is_published, is_deleted)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            RETURNING $COLS
         """.trimIndent()
         ds.connection.use { conn ->
-            conn.prepareStatement(sql).use { ps ->
+            conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS).use { ps ->
                 ps.setString(1, post.title)
                 ps.setString(2, post.content)
                 ps.setString(3, post.authorName)
@@ -41,19 +41,25 @@ class PostRepository(private val ds: DataSource) {
                 ps.setInt(6, post.likeCount)
                 ps.setBoolean(7, post.isPublished)
                 ps.setBoolean(8, post.isDeleted)
-                ps.executeQuery().use { rs ->
-                    return if (rs.next()) mapRow(rs) else post
+                ps.executeUpdate()
+                ps.generatedKeys.use { keys ->
+                    if (keys.next()) {
+                        val id = keys.getLong(1)
+                        // SELECT 全 row 拿 createdAt/updatedAt（H2 不支持 RETURNING，兜底用额外 SELECT）
+                        return findByIdRaw(conn, id) ?: post.copy(id = id)
+                    }
+                    return post
                 }
             }
         }
     }
 
     private fun update(post: Post): Post {
+        val postId = post.id ?: return post
         val sql = """
             UPDATE posts SET title=?, content=?, author_name=?, cover_image=?, view_count=?, like_count=?,
                   is_published=?, is_deleted=?, updated_at=CURRENT_TIMESTAMP
             WHERE id=?
-            RETURNING $COLS
         """.trimIndent()
         ds.connection.use { conn ->
             conn.prepareStatement(sql).use { ps ->
@@ -65,10 +71,26 @@ class PostRepository(private val ds: DataSource) {
                 ps.setInt(6, post.likeCount)
                 ps.setBoolean(7, post.isPublished)
                 ps.setBoolean(8, post.isDeleted)
-                ps.setLong(9, post.id!!)
-                ps.executeQuery().use { rs ->
-                    return if (rs.next()) mapRow(rs) else post
+                ps.setLong(9, postId)
+                val rows = ps.executeUpdate()
+                if (rows > 0) {
+                    return findByIdRaw(conn, postId) ?: post
                 }
+                return post
+            }
+        }
+    }
+
+    /**
+     * 拿指定 id 的全 row（不 filter is_deleted）— 用于 insert/update 后拿 DB 默认值
+     * （created_at / updated_at 由 DB DEFAULT CURRENT_TIMESTAMP 生成）
+     */
+    private fun findByIdRaw(conn: java.sql.Connection, id: Long): Post? {
+        val sql = "SELECT $COLS FROM posts WHERE id = ?"
+        conn.prepareStatement(sql).use { ps ->
+            ps.setLong(1, id)
+            ps.executeQuery().use { rs ->
+                return if (rs.next()) mapRow(rs) else null
             }
         }
     }

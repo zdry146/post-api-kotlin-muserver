@@ -29,15 +29,22 @@ object GlobalExceptionHandler {
 
     fun writeError(ex: Throwable, response: MuResponse) {
         val status = handle(ex, response)
+        System.err.println("[GlobalExceptionHandler] status=$status type=${ex.javaClass.name} msg=${ex.message}")
+        ex.printStackTrace(System.err)
         val apiResult = when (ex) {
             is NotFoundException -> ApiResult.fail<Any>(404, ex.message ?: "Not found")
             is BusinessException -> ApiResult.fail<Any>(ex.errorCode, ex.message ?: "Business error")
             is ValidationException -> ApiResult.fail<Any>(400, ex.message ?: "Validation failed")
             is IllegalArgumentException -> ApiResult.fail<Any>(400, ex.message ?: "Invalid argument")
-            else -> ApiResult.fail<Any>(500, "系统异常，请稍后重试")
+            else -> ApiResult.fail<Any>(500, "[${ex.javaClass.simpleName}] ${ex.message ?: "系统异常"}")
         }
-        response.status(status)
-        response.contentType("application/json; charset=utf-8")
-        response.write(JsonMapper.writeValueAsString(apiResult))
+        try {
+            response.status(status)
+            response.contentType("application/json; charset=utf-8")
+            response.write(JsonMapper.writeValueAsString(apiResult))
+        } catch (writeEx: Throwable) {
+            System.err.println("[GlobalExceptionHandler] FAILED to write error response: ${writeEx.message}")
+            writeEx.printStackTrace(System.err)
+        }
     }
 }

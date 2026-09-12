@@ -22,6 +22,10 @@ import io.muserver.Routes
 class PostHandler(private val postService: PostService) {
 
     fun register(): List<MuHandler> = listOf(
+        // ⚠️ 路由顺序很关键：mu-server Routes DSL 按注册顺序匹配第一个 wins。
+        // list 端点（exact path）必须先于 {id} wildcard 注册，
+        // 否则 /api/posts/published 会被 /api/posts/{id} 吃掉（id=published 解析失败）。
+
         // POST /api/posts — 创建
         Routes.route(Method.POST, "/api/posts", RouteHandler { req, resp, _ ->
             try {
@@ -43,15 +47,6 @@ class PostHandler(private val postService: PostService) {
             } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
         }),
 
-        // GET /api/posts/{id} — 获取（+1 viewCount）
-        Routes.route(Method.GET, "/api/posts/{id}", RouteHandler { req, resp, params ->
-            try {
-                val id = parseId(params["id"])
-                val post = postService.getById(id)
-                writeJson(ApiResult.ok(post), resp)
-            } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
-        }),
-
         // DELETE /api/posts/{id} — 软删除
         Routes.route(Method.DELETE, "/api/posts/{id}", RouteHandler { req, resp, params ->
             try {
@@ -61,7 +56,7 @@ class PostHandler(private val postService: PostService) {
             } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
         }),
 
-        // GET /api/posts/published — 已发布分页
+        // GET /api/posts/published — 已发布分页（exact path，必须先于 {id}）
         Routes.route(Method.GET, "/api/posts/published", RouteHandler { req, resp, _ ->
             try {
                 val (page, size) = parsePageable(req)
@@ -70,7 +65,7 @@ class PostHandler(private val postService: PostService) {
             } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
         }),
 
-        // GET /api/posts/all — 全部分页
+        // GET /api/posts/all — 全部分页（exact path，必须先于 {id}）
         Routes.route(Method.GET, "/api/posts/all", RouteHandler { req, resp, _ ->
             try {
                 val (page, size) = parsePageable(req)
@@ -79,7 +74,7 @@ class PostHandler(private val postService: PostService) {
             } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
         }),
 
-        // GET /api/posts/search — 标题搜索
+        // GET /api/posts/search — 标题搜索（exact path，必须先于 {id}）
         Routes.route(Method.GET, "/api/posts/search", RouteHandler { req, resp, _ ->
             try {
                 val keyword = req.query().get("keyword")
@@ -87,6 +82,15 @@ class PostHandler(private val postService: PostService) {
                 val (page, size) = parsePageable(req)
                 val result = postService.search(keyword, page, size)
                 writeJson(ApiResult.ok(result), resp)
+            } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
+        }),
+
+        // GET /api/posts/{id} — 获取（+1 viewCount）— 放在最后兜底，避免吃掉 list 端点
+        Routes.route(Method.GET, "/api/posts/{id}", RouteHandler { req, resp, params ->
+            try {
+                val id = parseId(params["id"])
+                val post = postService.getById(id)
+                writeJson(ApiResult.ok(post), resp)
             } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
         }),
 

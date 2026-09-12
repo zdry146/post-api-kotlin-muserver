@@ -53,6 +53,7 @@ dependencies {
     testImplementation("io.mockk:mockk:1.13.13")
     testImplementation("com.h2database:h2:2.3.232")
     testImplementation("org.assertj:assertj-core:3.26.3")
+    testImplementation("com.squareup.okhttp3:okhttp:4.12.0")  // HTTP client for integration tests
 }
 
 application {

@@ -1,0 +1,47 @@
+# Gradle
+.gradle/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.project
+.classpath
+.settings/
+.factorypath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Application
+application-local.properties
+.env
+.env.local
+
+# Build outputs
+.kotlin/
+target/
+bin/
+
+# Database
+*.db
+*.sqlite
+*.h2.db
+
+# Sensitive
+*.pem
+*.key
+secrets/

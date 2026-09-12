@@ -6,12 +6,14 @@ pluginManagement {
     }
 }
 
+// Azul Zulu 25 toolchain 自动下载（从 foojay-resolver-convention 仓库）
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
+}
+
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT)
     repositories {
         mavenCentral()
-        // Gradle toolchain 仓库（自动下载 Azul Zulu 25）
-        // 已默认包含在 Gradle 8.5+ 中
     }
 }
 

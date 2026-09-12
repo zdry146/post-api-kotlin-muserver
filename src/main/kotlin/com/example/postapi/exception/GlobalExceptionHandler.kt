@@ -1,39 +1,43 @@
 package com.example.postapi.exception
 
+import com.example.postapi.config.JsonMapper
 import com.example.postapi.dto.ApiResult
-import io.muserver.MuRequest
 import io.muserver.MuResponse
 import org.slf4j.LoggerFactory
 
 /**
  * 全局异常处理 — 替代 Spring @RestControllerAdvice GlobalExceptionHandler
  *
- * mu-server 通过 exchange.fireException(ex) 抛出，handler chain 中下一个 handler 捕获
- * 这里提供一个静态方法让 handler 显式调用以转换异常为 ApiResult JSON
+ * mu-server 2.4.2 中 MuResponse.status 是方法 status(int)，不是 property
  */
 object GlobalExceptionHandler {
     private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 
-    fun handle(ex: Throwable, response: MuResponse): MuResponse {
-        val (status, apiResult) = when (ex) {
-            is NotFoundException -> 404 to ApiResult.fail<Void>(404, ex.message ?: "Not found")
-            is BusinessException -> ex.errorCode to ApiResult.fail<Void>(ex.errorCode, ex.message ?: "Business error")
-            is ValidationException -> 400 to ApiResult.fail<Void>(400, ex.message ?: "Validation failed")
-            is IllegalArgumentException -> 400 to ApiResult.fail<Void>(400, ex.message ?: "Invalid argument")
+    fun handle(ex: Throwable, response: MuResponse): Int {
+        val status = when (ex) {
+            is NotFoundException -> 404
+            is BusinessException -> ex.errorCode
+            is ValidationException -> 400
+            is IllegalArgumentException -> 400
             else -> {
                 log.error("Unexpected error", ex)
-                500 to ApiResult.fail<Void>(500, "系统异常，请稍后重试")
+                500
             }
         }
-        response.status = status
-        return response
+        return status
     }
 
-    /**
-     * 将 ApiResult 序列化为 JSON 写入响应
-     */
-    fun writeJson(result: ApiResult<*>, response: MuResponse) {
+    fun writeError(ex: Throwable, response: MuResponse) {
+        val status = handle(ex, response)
+        val apiResult = when (ex) {
+            is NotFoundException -> ApiResult.fail<Any>(404, ex.message ?: "Not found")
+            is BusinessException -> ApiResult.fail<Any>(ex.errorCode, ex.message ?: "Business error")
+            is ValidationException -> ApiResult.fail<Any>(400, ex.message ?: "Validation failed")
+            is IllegalArgumentException -> ApiResult.fail<Any>(400, ex.message ?: "Invalid argument")
+            else -> ApiResult.fail<Any>(500, "系统异常，请稍后重试")
+        }
+        response.status(status)
         response.contentType("application/json; charset=utf-8")
-        response.write(JsonMapper.writeValueAsString(result))
+        response.write(JsonMapper.writeValueAsString(apiResult))
     }
 }

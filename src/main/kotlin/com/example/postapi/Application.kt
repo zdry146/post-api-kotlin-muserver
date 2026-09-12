@@ -1,8 +1,6 @@
 package com.example.postapi
 
 import com.example.postapi.batch.CleanupJob
-import com.example.postapi.config.CorsConfig
-import com.example.postapi.config.DatabaseFactory
 import com.example.postapi.handler.AdminHandler
 import com.example.postapi.handler.PostHandler
 import com.example.postapi.repository.PostRepository
@@ -14,13 +12,11 @@ import java.nio.file.Paths
 /**
  * Application 入口 — 替代 Spring Boot @SpringBootApplication PostApiApplication
  *
- * 启动步骤：
- * 1. 创建 HikariCP DataSource
- * 2. 初始化 schema (schema-postgres.sql)
- * 3. 实例化 Repository / Service / Handler
- * 4. 配置 mu-server (CORS + routes + 启动参数)
- * 5. 启动 cleanup batch 定时任务
- * 6. 注册 shutdown hook（优雅关闭）
+ * 用法:
+ *   export DB_URL=jdbc:postgresql://localhost:5432/testdb
+ *   export DB_USER=postgres
+ *   export DB_PASSWORD=***
+ *   ./gradlew run
  */
 object Application {
 
@@ -31,57 +27,50 @@ object Application {
         log.info("=== post-api-kotlin-muserver starting ===")
 
         // 1. 数据库
-        val ds = DatabaseFactory.create()
-        DatabaseFactory.initializeSchema(ds, Paths.get("src/main/resources/schema-postgres.sql"))
+        val ds = com.example.postapi.config.DatabaseFactory.create()
+        com.example.postapi.config.DatabaseFactory.initializeSchema(
+            ds,
+            Paths.get("src/main/resources/schema-postgres.sql")
+        )
 
-        // 2. Repository
+        // 2. Repository / Service / Handler
         val postRepository = PostRepository(ds)
-
-        // 3. Service
         val postService = PostService(postRepository)
-
-        // 4. Handler
         val postHandler = PostHandler(postService)
         val cleanupJob = CleanupJob(postRepository)
         val adminHandler = AdminHandler(cleanupJob)
 
-        // 5. 启动 cleanup 定时任务（每天 0 点）
+        // 3. 启动 cleanup 定时任务（每天 0 点）
         cleanupJob.start()
 
-        // 6. mu-server 配置
+        // 4. mu-server 配置（最简化：只设端口 + handlers，timeout 用默认值）
         val httpPort = System.getenv("HTTP_PORT")?.toIntOrNull() ?: 8080
-        val server = MuServerBuilder.httpServer()
-            .withHttpPort(httpPort)
-            .withCORS(CorsConfig.create())  // CORS Handler（顶层）
-            .addHandler(postHandler.register())  // 9 个 post endpoints
-            .addHandler(adminHandler.register())  // cleanup-job trigger
-            .withRequestTimeout(java.time.Duration.ofSeconds(10))
-            .withIdleTimeout(java.time.Duration.ofSeconds(60))
-            .withMaxHeadersSize(8192)
-            .withMaxUrlSize(8192)
-            .start()
+        val builder = MuServerBuilder.httpServer().withHttpPort(httpPort)
+        postHandler.register().forEach { builder.addHandler(it) }   // 9 个 post endpoints
+        adminHandler.register().forEach { builder.addHandler(it) }  // cleanup-job trigger
+        val server = builder.start()
 
-        log.info("=== Server started at http://localhost:{} ===", httpPort)
+        log.info("=== Server started at {} ===", server.uri())
         log.info("Endpoints:")
         log.info("  POST   /api/posts")
-        log.info("  PUT    /api/posts/{{id}}")
-        log.info("  GET    /api/posts/{{id}}")
-        log.info("  DELETE /api/posts/{{id}}")
+        log.info("  PUT    /api/posts/{id}")
+        log.info("  GET    /api/posts/{id}")
+        log.info("  DELETE /api/posts/{id}")
         log.info("  GET    /api/posts/published?page=&size=")
         log.info("  GET    /api/posts/all?page=&size=")
         log.info("  GET    /api/posts/search?keyword=&page=&size=")
-        log.info("  POST   /api/posts/{{id}}/toggle-publish")
-        log.info("  POST   /api/posts/{{id}}/like")
+        log.info("  POST   /api/posts/{id}/toggle-publish")
+        log.info("  POST   /api/posts/{id}/like")
         log.info("  POST   /api/admin/cleanup-job")
 
-        // 7. 优雅关闭
+        // 5. 优雅关闭
         Runtime.getRuntime().addShutdownHook(Thread {
             log.info("=== Shutting down ===")
             cleanupJob.stop()
             server.stop()
         })
 
-        // 阻塞主线程直到 server 关闭
+        // 阻塞主线程
         Thread.currentThread().join()
     }
 }

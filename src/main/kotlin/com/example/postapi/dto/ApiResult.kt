@@ -11,8 +11,8 @@ data class ApiResult<T>(
 ) {
     companion object {
         fun <T> ok(data: T): ApiResult<T> = ApiResult(code = 200, message = "success", data = data)
-        fun <T> ok(message: String, data: T): ApiResult<T> = ApiResult(code = 200, message = message, data = data)
-        fun <T> fail(code: Int, message: String): ApiResult<T> = ApiResult(code = code, message = message, data = null)
-        fun <T> fail(message: String): ApiResult<T> = fail(400, message)
+        fun <T> ok(message: String, data: T?): ApiResult<T?> = ApiResult(code = 200, message = message, data = data)
+        fun <T> fail(code: Int, message: String): ApiResult<T?> = ApiResult(code = code, message = message, data = null)
+        fun <T> fail(message: String): ApiResult<T?> = fail(400, message)
     }
 }

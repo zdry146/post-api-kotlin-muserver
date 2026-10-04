@@ -93,6 +93,14 @@ pipeline {
                 # post-api-backend / post-api-frontend can take over the namespace.
                 kubectl -n ${NAMESPACE} delete deployment post-api --ignore-not-found
                 kubectl -n ${NAMESPACE} delete service post-api-svc --ignore-not-found
+                # CRITICAL: delete OUR deployments too. With local images +
+                # imagePullPolicy:Never, K8s won't re-pull when we rebuild
+                # with the same 'latest' tag, so 'kubectl apply' becomes a
+                # no-op and pods keep running the old (broken) image. Force-
+                # delete so kubectl apply creates fresh deployments + pods
+                # using the new image.
+                kubectl -n ${NAMESPACE} delete deployment post-api-backend --ignore-not-found
+                kubectl -n ${NAMESPACE} delete deployment post-api-frontend --ignore-not-found
                 # Substitute __IMAGE_TAG__ / __DB_HOST__ / __DB_DATABASE__ placeholders
                 for f in k8s/backend.yaml k8s/frontend.yaml; do
                     sed -e "s|__IMAGE_TAG__|${DEPLOY_TAG}|g" \\

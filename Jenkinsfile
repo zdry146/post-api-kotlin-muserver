@@ -54,7 +54,7 @@ pipeline {
                 sh '''
                 set -euo pipefail
                 cd frontend
-                npm ci --omit=dev
+                npm ci
                 npm run build:fast
                 cd ..
                 '''
@@ -128,7 +128,7 @@ pipeline {
                 cd frontend
                 # Frontend is exposed via NodePort 30080 on the host
                 export PLAYWRIGHT_BASE_URL=http://192.168.232.128:30080
-                npm ci --omit=dev
+                npm ci
                 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
                 export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/snap/bin/chromium
                 # Clean DB so tests start from empty (new schema on backend boot)

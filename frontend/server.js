@@ -23,7 +23,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.PORT) || 5174;
-const HOST = process.env.HOST || '127.0.0.1';
+const HOST = process.env.HOST || '0.0.0.0';
 // mu-server (Kotlin) runs on :8090 because Jenkins squats :8080.
 // Override via BACKEND_URL env var for staging/prod.
 const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8090';

@@ -102,6 +102,22 @@ class PostService(private val postRepository: PostRepository) {
         return PostResponse.fromEntity(post)
     }
 
+    /**
+     * 取消点赞（对称 like）—— like_count >= 1 才减 1，否则直接返回当前 post（不动 DB）。
+     * SQL 层用 GREATEST 兜底，确保 like_count 永远 >= 0。
+     */
+    fun unlike(id: Long): PostResponse {
+        log.info("Unliking post, id={}", id)
+        val post = findPostById(id)
+        if (post.likeCount <= 0) {
+            log.info("Unlike no-op, likeCount already 0, id={}", id)
+            return PostResponse.fromEntity(post)
+        }
+        postRepository.decrementLikeCount(id)
+        post.likeCount = (post.likeCount - 1).coerceAtLeast(0)
+        return PostResponse.fromEntity(post)
+    }
+
     private fun findPostById(id: Long): Post {
         return postRepository.findByIdAndIsDeletedFalse(id)
             ?: throw NotFoundException("帖子不存在，id=$id")

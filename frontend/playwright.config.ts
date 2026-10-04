@@ -1,0 +1,58 @@
+import { defineConfig, devices } from '@playwright/test';
+
+/**
+ * Playwright E2E config for the post-api vanilla TS frontend.
+ *
+ * Run modes:
+ *   - Manual: `npm start` (in another shell), then `npm run test:e2e`
+ *   - Auto:   `npm run test:e2e` (webServer boots both backend + frontend)
+ *
+ * Targets:
+ *   - Backend (mu-server) on :8080  — assumed running externally
+ *   - Frontend (Express) on :5174   — spawned by webServer
+ */
+export default defineConfig({
+  testDir: './e2e',
+  // E2E tests touch shared state (backend DB) — run serially.
+  fullyParallel: false,
+  workers: 1,
+  retries: 0,
+  reporter: [
+    ['list'],
+    ['html', { outputFolder: 'test-results/report', open: 'never' }],
+  ],
+  timeout: 30_000,
+  expect: { timeout: 5_000 },
+
+  use: {
+    baseURL: 'http://127.0.0.1:5174',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        // Disable webkit/firefox for speed — only chromium needed for CI smoke.
+        // Add more projects if cross-browser coverage is needed.
+      },
+    },
+  ],
+
+  // Playwright will spawn this command before running tests.
+  // We assume the mu-server backend is running on :8080 (started separately).
+  // The frontend Express server is built + started here.
+  webServer: [
+    {
+      command: 'npm run build:fast && node server.js',
+      port: 5174,
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  ],
+});

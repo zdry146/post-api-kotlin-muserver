@@ -16,7 +16,7 @@
 | 构建 | Maven | **Gradle (Kotlin DSL)** |
 | 注解 | Lombok (@Data, @Builder) | **Kotlin data class** |
 
-## API 端点（与原版一致）
+## API 端点（与原版一致 + 增强）
 
 ```
 POST   /api/posts                          — 创建帖子
@@ -28,7 +28,14 @@ GET    /api/posts/all?page=&size=          — 全部分页
 GET    /api/posts/search?keyword=&page=&size=  — 标题搜索
 POST   /api/posts/{id}/toggle-publish      — 切换发布状态
 POST   /api/posts/{id}/like                — +1 likeCount
+POST   /api/posts/{id}/unlike              — -1 likeCount（P1-2 新增）
 POST   /api/admin/cleanup-job              — 手动触发清理任务
+
+# 运维端点（P1-3, P1-4, P1-1, P3-9）
+GET    /health                              — liveness（永远 200）
+GET    /health/ready                        — readiness（DB check）
+GET    /openapi.json                        — OpenAPI 3.1 spec（公开 CORS）
+GET    /docs                                — Swagger UI
 ```
 
 ## 数据模型
@@ -58,14 +65,27 @@ export DB_USER="postgres"
 export DB_PASSWORD="postgres"
 export HTTP_PORT="8080"
 
+# P1-5: CORS 白名单（默认 localhost:5173 + localhost:3000）
+export CORS_ALLOWED_ORIGINS="http://localhost:5173,http://localhost:3000"
+
+# P2-6: Rate limit（默认 50/sec per-IP）
+export RATE_LIMIT_PER_SECOND="50"
+export RATE_LIMIT_ENABLED="true"
+
+# P2-7: Request logging（默认 true）
+export REQUEST_LOG_ENABLED="true"
+
 # Gradle 会自动下载 Azul Zulu 25（来自foojay 仓库）
 ./gradlew run
 ```
 
 启动后访问：
 - API: http://localhost:8080/api/posts/published
-- OpenAPI/Swagger UI: 暂未提供（原版 Springdoc 已移除）
-- 健康检查: http://localhost:8080/admin/cleanup-job（POST 手动触发 cleanup）
+- OpenAPI spec: http://localhost:8080/openapi.json
+- Swagger UI: http://localhost:8080/docs
+- Liveness: http://localhost:8080/health
+- Readiness: http://localhost:8080/health/ready
+- Admin: http://localhost:8080/admin/cleanup-job（POST 手动触发 cleanup）
 
 ## 迁移要点
 
@@ -79,10 +99,9 @@ export HTTP_PORT="8080"
 
 ## 已知限制 / 待办
 
-- 暂无 OpenAPI/Swagger 文档生成（mu-server 的 `OpenApiGenerator` 留待集成）
-- 暂无测试（保留原版 Karate + JUnit 测试思路，但需要用 Kotlin Test 重写）
-- 暂无 Docker 镜像（原版 SpringBootDocker 可参考）
 - 暂无 OpenTelemetry / Micrometer 监控集成
+- 暂无 Docker 镜像（原版 SpringBootDocker 可参考）
+- Pact contract test 未迁移（原 Java 端 `pact-tests/` 目录为空，consumer 在前端）
 
 ## 关联项目
 

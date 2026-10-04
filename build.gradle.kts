@@ -41,6 +41,9 @@ dependencies {
     // ============ JDBC + 连接池 ============
     implementation("org.postgresql:postgresql:42.7.4")
     implementation("com.zaxxer:HikariCP:5.1.0")
+    // H2 runtime dep — for in-memory mode (jdbc:h2:mem:...) when DB_URL points to H2
+    // DatabaseFactory detects URL prefix and picks driver; H2 only loaded when needed
+    runtimeOnly("com.h2database:h2:2.3.232")
 
     // ============ Logging ============
     implementation("ch.qos.logback:logback-classic:1.5.12")
@@ -57,7 +60,8 @@ dependencies {
 }
 
 application {
-    mainClass.set("com.example.postapi.ApplicationKt")
+    // object Application { @JvmStatic fun main } → Application.class, NOT ApplicationKt.class
+    mainClass.set("com.example.postapi.Application")
 }
 
 tasks.withType<Test> {

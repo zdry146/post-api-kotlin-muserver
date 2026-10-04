@@ -209,6 +209,20 @@ class PostRepository(private val ds: DataSource) {
     }
 
     /**
+     * Decrement like count but never below 0 (GREATEST guards against negative).
+     * Returns the number of rows affected (0 if post not found / already deleted).
+     */
+    fun decrementLikeCount(id: Long): Int {
+        val sql = "UPDATE posts SET like_count = GREATEST(like_count - 1, 0) WHERE id = ? AND is_deleted = false"
+        ds.connection.use { conn ->
+            conn.prepareStatement(sql).use { ps ->
+                ps.setLong(1, id)
+                return ps.executeUpdate()
+            }
+        }
+    }
+
+    /**
      * 查找 N 天前未发布且未删除的帖子（用于 batch cleanup）
      */
     fun findUnpublishedOlderThan(cutoffDate: LocalDateTime): List<Post> {

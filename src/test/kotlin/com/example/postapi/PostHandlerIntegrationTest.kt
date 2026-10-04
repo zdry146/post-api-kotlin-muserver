@@ -1,11 +1,16 @@
 package com.example.postapi
 
 import com.example.postapi.batch.CleanupJob
+import com.example.postapi.config.CorsConfig
 import com.example.postapi.config.DatabaseFactory
 import com.example.postapi.config.JsonMapper
 import com.example.postapi.dto.ApiResult
 import com.example.postapi.handler.AdminHandler
+import com.example.postapi.handler.HealthHandler
+import com.example.postapi.handler.OpenApiHandler
 import com.example.postapi.handler.PostHandler
+import com.example.postapi.handler.RateLimitHandler
+import com.example.postapi.handler.RequestLoggingHandler
 import com.example.postapi.repository.PostRepository
 import com.example.postapi.service.PostService
 import io.muserver.MuServer
@@ -58,11 +63,16 @@ class PostHandlerIntegrationTest {
         val postHandler = PostHandler(postService)
         val cleanupJob = CleanupJob(postRepository)
         val adminHandler = AdminHandler(cleanupJob)
+        val healthHandler = HealthHandler(dataSource)
 
         // 3. 启动 mu-server
         val builder = MuServerBuilder.httpServer().withHttpPort(0)
-        postHandler.register().forEach { builder.addHandler(it) }
-        adminHandler.register().forEach { builder.addHandler(it) }
+        builder.addHandler(CorsConfig.create())
+        builder.addHandler(RateLimitHandler(requestsPerSecond = 1000))  // 测试环境不限速
+        OpenApiHandler.register().forEach { builder.addHandler(it) }
+        healthHandler.register().forEach { builder.addHandler(it) }
+        val allRoutes = postHandler.register() + adminHandler.register()
+        RequestLoggingHandler.wrapAll(allRoutes).forEach { builder.addHandler(it) }
         server = builder.start()
         val port = server.uri().port
         baseUri = "http://localhost:$port"
@@ -212,6 +222,67 @@ class PostHandlerIntegrationTest {
         post("/api/posts", """{"title":"Like","content":"X","authorName":"A"}""")
         val resp = post("/api/posts/1/like")
         assertApiResult(resp, 200)
+    }
+
+    @Test
+    fun `unlikePost - POST api posts id unlike decrements likeCount`() {
+        post("/api/posts", """{"title":"LikeAndUnlike","content":"X","authorName":"A"}""")
+        post("/api/posts/1/like")
+        post("/api/posts/1/like")
+        val resp = post("/api/posts/1/unlike")
+        resp.use {
+            assertThat(it.code).isEqualTo(200)
+            val body = it.body?.string() ?: ""
+            val dataMap = JsonMapper.readValue<Map<String, Any>>(body)["data"] as Map<String, Any>
+            assertThat(dataMap["likeCount"]).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `unlikePost - no-op when likeCount is already 0`() {
+        post("/api/posts", """{"title":"Fresh","content":"X","authorName":"A"}""")
+        val resp = post("/api/posts/1/unlike")
+        assertApiResult(resp, 200)
+    }
+
+    @Test
+    fun `unlikePost - 404 when post not found`() {
+        val resp = post("/api/posts/999999/unlike")
+        assertApiResult(resp, 404)
+    }
+
+    @Test
+    fun `Cache-Control - GET api posts published sets private max-age 60`() {
+        val resp = get("/api/posts/published?page=0&size=10")
+        resp.use {
+            assertThat(it.header("Cache-Control")).isEqualTo("private, max-age=60")
+        }
+    }
+
+    @Test
+    fun `Cache-Control - GET api posts all sets private max-age 60`() {
+        val resp = get("/api/posts/all?page=0&size=10")
+        resp.use {
+            assertThat(it.header("Cache-Control")).isEqualTo("private, max-age=60")
+        }
+    }
+
+    @Test
+    fun `Cache-Control - GET api posts search sets private max-age 60`() {
+        val resp = get("/api/posts/search?keyword=test&page=0&size=10")
+        resp.use {
+            assertThat(it.header("Cache-Control")).isEqualTo("private, max-age=60")
+        }
+    }
+
+    @Test
+    fun `Cache-Control - GET api posts id (single) does NOT have list cache header`() {
+        // 单条详情不要缓存（每次 +1 viewCount，必须返回最新）
+        post("/api/posts", """{"title":"Single","content":"X","authorName":"A"}""")
+        val resp = get("/api/posts/1")
+        resp.use {
+            assertThat(it.header("Cache-Control")).isNull()
+        }
     }
 
     // ============ Batch Job ============

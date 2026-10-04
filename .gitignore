@@ -45,3 +45,8 @@ bin/
 *.pem
 *.key
 secrets/
+# omo agent-teams artifacts (not in git per MEMORY)
+AGENT_TEAMS_SPEC.md
+plan.md
+review.md
+.omo/

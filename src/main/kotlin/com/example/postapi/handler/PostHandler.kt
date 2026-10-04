@@ -61,6 +61,7 @@ class PostHandler(private val postService: PostService) {
             try {
                 val (page, size) = parsePageable(req)
                 val result = postService.listPublished(page, size)
+                applyListCacheHeaders(resp)
                 writeJson(ApiResult.ok(result), resp)
             } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
         }),
@@ -70,6 +71,7 @@ class PostHandler(private val postService: PostService) {
             try {
                 val (page, size) = parsePageable(req)
                 val result = postService.listAll(page, size)
+                applyListCacheHeaders(resp)
                 writeJson(ApiResult.ok(result), resp)
             } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
         }),
@@ -81,6 +83,7 @@ class PostHandler(private val postService: PostService) {
                     ?: throw ValidationException("keyword 参数必填")
                 val (page, size) = parsePageable(req)
                 val result = postService.search(keyword, page, size)
+                applyListCacheHeaders(resp)
                 writeJson(ApiResult.ok(result), resp)
             } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
         }),
@@ -110,8 +113,22 @@ class PostHandler(private val postService: PostService) {
                 val post = postService.like(id)
                 writeJson(ApiResult.ok("点赞成功", post), resp)
             } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
+        }),
+
+        // POST /api/posts/{id}/unlike — 对称 like 端点
+        Routes.route(Method.POST, "/api/posts/{id}/unlike", RouteHandler { req, resp, params ->
+            try {
+                val id = parseId(params["id"])
+                val post = postService.unlike(id)
+                writeJson(ApiResult.ok("取消点赞成功", post), resp)
+            } catch (ex: Throwable) { GlobalExceptionHandler.writeError(ex, resp) }
         })
     )
+
+    /** Cache-Control: private, max-age=60 — 列表 endpoint，浏览器/CDN 可缓存 60s */
+    private fun applyListCacheHeaders(resp: MuResponse) {
+        resp.headers().set("Cache-Control", "private, max-age=60")
+    }
 
     private fun parseId(idStr: String?): Long {
         if (idStr.isNullOrBlank()) throw ValidationException("id 不能为空")

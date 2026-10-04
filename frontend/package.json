@@ -1,0 +1,27 @@
+{
+  "name": "post-api-frontend",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "vanilla TypeScript + HTML5 frontend for post-api — Express server + Playwright e2e",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "build:fast": "vite build",
+    "start": "node server.js",
+    "dev": "vite",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "http-proxy-middleware": "^3.0.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0"
+  }
+}

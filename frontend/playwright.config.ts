@@ -25,7 +25,10 @@ export default defineConfig({
   expect: { timeout: 5_000 },
 
   use: {
-    baseURL: 'http://127.0.0.1:5174',
+    // In CI (Jenkins), tests target the K8s-deployed app via PLAYWRIGHT_BASE_URL
+    // (e.g. http://192.168.232.128:30080 = NodePort). Locally, default to
+    // http://127.0.0.1:5174 when running the dev express server.
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:5174',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -42,17 +45,21 @@ export default defineConfig({
     },
   ],
 
-  // Playwright will spawn this command before running tests.
-  // We assume the mu-server backend is running on :8080 (started separately).
-  // The frontend Express server is built + started here.
-  webServer: [
-    {
-      command: 'npm run build:fast && node server.js',
-      port: 5174,
-      reuseExistingServer: !process.env.CI,
-      timeout: 60_000,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-  ],
+  // In CI (Jenkins), the app is already deployed to K8s — Playwright should
+  // NOT spawn its own webServer (port 5174 may collide with other processes).
+  // Local dev still benefits from the auto-spawn behavior.
+  ...(process.env.CI
+    ? {}
+    : {
+        webServer: [
+          {
+            command: 'npm run build:fast && node server.js',
+            port: 5174,
+            reuseExistingServer: true,
+            timeout: 60_000,
+            stdout: 'pipe' as const,
+            stderr: 'pipe' as const,
+          },
+        ],
+      }),
 });

@@ -1,0 +1,6 @@
+# 复用现有 post-api namespace（保留旧的 Java deployment 作 rollback 备份，等新部署成功再删）
+# 不 apply — 仅作记录
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: post-api

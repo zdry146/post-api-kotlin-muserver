@@ -1,8 +1,8 @@
 # post-api frontend image (vanilla TS + Express)
-# node:20-alpine 是最小 Node 运行时（~50 MB base）
+# node:20-slim 是最小 Node 运行时（~50 MB base）
 # build 时跑 `npm run build:fast`（已存在 dist/ 时 5ms）
 
-FROM node:20-alpine
+FROM node:20-slim
 WORKDIR /app
 
 # 先装依赖以利用 Docker cache

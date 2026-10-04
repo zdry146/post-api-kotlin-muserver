@@ -1,17 +1,20 @@
 # post-api frontend image (vanilla TS + Express)
-# node:20-slim 是最小 Node 运行时（~50 MB base）
-# build 时跑 `npm run build:fast`（已存在 dist/ 时 5ms）
+# Strategy: ALL compilation happens on Jenkins agent (has Gradle/npm cache).
+# This image is runtime-only: it copies pre-built `dist/`, `node_modules/`,
+# `server.js`, and `package.json` from the build context into a slim base.
+#
+# Trade-off: this Dockerfile is no longer standalone-buildable. CI/CD
+# always runs `npm ci` + `npm run build:fast` in the agent first, so
+# `dist/` and `node_modules/` are guaranteed to exist when this builds.
 
-FROM node:20-slim
+FROM node:20-alpine
 WORKDIR /app
 
-# 先装依赖以利用 Docker cache
+# Copy pre-built artifacts from Jenkins agent's vite stage
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-
-# 拷源码 + 构建
-COPY . .
-RUN npm run build:fast
+COPY node_modules ./node_modules
+COPY server.js ./
+COPY dist ./dist
 
 # Express 端口
 EXPOSE 5174

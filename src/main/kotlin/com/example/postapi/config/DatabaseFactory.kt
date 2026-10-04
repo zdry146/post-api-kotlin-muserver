@@ -3,8 +3,6 @@ package com.example.postapi.config
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.slf4j.LoggerFactory
-import java.nio.file.Files
-import java.nio.file.Path
 import javax.sql.DataSource
 
 /**
@@ -38,10 +36,27 @@ object DatabaseFactory {
         return HikariDataSource(config)
     }
 
-    fun initializeSchema(ds: DataSource, schemaPath: Path) {
-        log.info("Initializing database schema from {}", schemaPath)
+    fun initializeSchema(ds: DataSource) {
         val isH2 = ds.connection.use { it.metaData.url }.startsWith("jdbc:h2")
-        var sql = Files.readString(schemaPath)
+        val resourceName = if (isH2) "schema-h2.sql" else "schema-postgres.sql"
+        log.info("Initializing database schema from classpath resource: {}", resourceName)
+        // Read schema from classpath (packaged into the jar at build time via
+        // src/main/resources/). Works in any environment: dev (IDE), Gradle
+        // test (classpath includes build/resources/main), and Docker runtime
+        // (installDir's lib/*.jar contains the resource).
+        val sql = this::class.java.classLoader.getResourceAsStream(resourceName)?.use { stream ->
+            stream.bufferedReader().readText()
+        } ?: run {
+            // Some Gradle test invocations don't add build/resources/main to classpath
+            // when running outside of the standard test task. Try the absolute path
+            // as a fallback for dev convenience.
+            val devPath = java.nio.file.Paths.get("src/main/resources/$resourceName")
+            if (java.nio.file.Files.exists(devPath)) {
+                java.nio.file.Files.readString(devPath)
+            } else {
+                error("Schema resource not found on classpath: $resourceName (and dev fallback missing too)")
+            }
+        }
         if (isH2) {
             // H2 PostgreSQL mode 兼容转换：
             // - BIGSERIAL → H2 不识别，改为 IDENTITY (SQL 标准)

@@ -61,14 +61,9 @@ object Application {
 
         // 1. 数据库
         val ds = com.example.postapi.config.DatabaseFactory.create()
-        // 根据 DB_URL 自动选 schema 文件：H2 → schema-h2.sql，其他 → schema-postgres.sql
-        val dsUrl = (ds as? com.zaxxer.hikari.HikariDataSource)?.jdbcUrl ?: ""
-        val schemaPath = if (dsUrl.startsWith("jdbc:h2")) {
-            Paths.get("src/main/resources/schema-h2.sql")
-        } else {
-            Paths.get("src/main/resources/schema-postgres.sql")
-        }
-        com.example.postapi.config.DatabaseFactory.initializeSchema(ds, schemaPath)
+        // DatabaseFactory.initializeSchema auto-detects schema file from DB type
+        // (H2 → schema-h2.sql, Postgres → schema-postgres.sql) via classpath resource.
+        com.example.postapi.config.DatabaseFactory.initializeSchema(ds)
 
         // 2. Repository / Service / Handler
         val postRepository = PostRepository(ds)

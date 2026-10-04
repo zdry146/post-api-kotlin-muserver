@@ -44,7 +44,7 @@ object DatabaseFactory {
         // src/main/resources/). Works in any environment: dev (IDE), Gradle
         // test (classpath includes build/resources/main), and Docker runtime
         // (installDir's lib/*.jar contains the resource).
-        val sql = this::class.java.classLoader.getResourceAsStream(resourceName)?.use { stream ->
+        var sql = this::class.java.classLoader.getResourceAsStream(resourceName)?.use { stream ->
             stream.bufferedReader().readText()
         } ?: run {
             // Some Gradle test invocations don't add build/resources/main to classpath

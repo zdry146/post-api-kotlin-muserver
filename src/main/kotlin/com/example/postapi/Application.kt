@@ -61,9 +61,13 @@ object Application {
 
         // 1. 数据库
         val ds = com.example.postapi.config.DatabaseFactory.create()
-        // DatabaseFactory.initializeSchema auto-detects schema file from DB type
-        // (H2 → schema-h2.sql, Postgres → schema-postgres.sql) via classpath resource.
-        com.example.postapi.config.DatabaseFactory.initializeSchema(ds)
+        // Schema management is handled OUTSIDE the application in production
+        // (via Flyway/Liquibase/init-container/manual SQL). K8s deployments
+        // should NOT re-initialize schema on every pod start — DB schema is
+        // persistent across pod restarts.
+        // For tests: PostHandlerIntegrationTest calls DatabaseFactory.initializeSchema(ds)
+        // explicitly with a fresh H2 in-memory DB.
+        // For prod: ensure schema exists once before first deploy.
 
         // 2. Repository / Service / Handler
         val postRepository = PostRepository(ds)

@@ -36,7 +36,11 @@ pipeline {
                 sh '''
                 set -euo pipefail
                 cd "$WORKSPACE"
-                ~/.local/gradle/gradle-8.10.2/bin/gradle clean build -x test --no-daemon
+                # installDist: produces build/install/post-api-kotlin-muserver/
+                # with bin/<app> shell script + lib/*.jar deps. Plain 'build' task
+                # only produces a sources jar without Main-Class manifest — Docker
+                # can't run `java -jar app.jar` on it.
+                ~/.local/gradle/gradle-8.10.2/bin/gradle clean installDist -x test --no-daemon
                 '''
             }
         }
@@ -62,6 +66,7 @@ pipeline {
                 # Verify Dockerfile exists (defensive — was the previous bug)
                 test -f Dockerfile || { echo "ERROR: Dockerfile missing in $WORKSPACE"; ls -la; exit 1; }
                 test -f frontend/Dockerfile || { echo "ERROR: frontend/Dockerfile missing"; ls -la frontend/; exit 1; }
+                test -d build/install/post-api-kotlin-muserver || { echo "ERROR: installDir missing — gradle installDist failed"; ls -la build/; exit 1; }
                 docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} -t ${BACKEND_IMAGE}:latest -f Dockerfile .
                 docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -t ${FRONTEND_IMAGE}:latest -f frontend/Dockerfile frontend
                 docker images | grep -E "post-api-(backend|frontend)" || true

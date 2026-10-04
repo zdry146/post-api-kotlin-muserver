@@ -1,17 +1,21 @@
 # post-api-kotlin-muserver backend image
-# Strategy: gradle build runs ONCE on the Jenkins agent (faster — has local
-# Gradle cache, faster Maven mirror). This image is runtime-only: it copies
-# the pre-built jar from `$WORKSPACE/build/libs/` into a slim JRE base.
+# Strategy: gradle installDist runs on Jenkins agent (has Gradle/Maven cache).
+# That produces build/install/post-api-kotlin-muserver/ with bin/ + lib/.
+# This image just copies that directory and runs the bin/ script.
 #
-# Trade-off: this Dockerfile is no longer standalone-buildable (requires
-# a pre-built jar in context). But CI/CD always builds the jar in the agent
-# first, so this matches our pipeline.
+# Why installDist instead of jar:
+#   - The plain `gradle build` task produces build/libs/*.jar (sources jar, no
+#     Main-Class manifest). Docker would fail with "no main manifest attribute".
+#   - `gradle installDist` (application plugin) creates bin/<app> shell script
+#     that wires the classpath from lib/*.jar + invokes the main class.
+#
+# Trade-off: image requires pre-built installDir in build context.
 
 FROM eclipse-temurin:21
 WORKDIR /app
 
-# Copy pre-built jar from Jenkins agent's gradle stage
-COPY build/libs/*.jar app.jar
+# Copy pre-built install dir (bin/ + lib/ + conf/) from gradle installDist stage
+COPY build/install/post-api-kotlin-muserver/ /app/
 
 # mu-server 默认端口
 EXPOSE 8090
@@ -20,6 +24,8 @@ EXPOSE 8090
 ENV JAVA_OPTS="-Xms256m -Xmx512m" \
     DB_URL="jdbc:postgresql://localhost:5432/testdb" \
     DB_USER="postgres" \
-    DB_PASSWORD="postgres"
+    DB_PASSWORD="***"
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
+# Run the bin/ script — it sets up classpath from lib/*.jar and invokes
+# com.example.postapi.Application (configured in build.gradle.kts)
+ENTRYPOINT ["./bin/post-api-kotlin-muserver"]

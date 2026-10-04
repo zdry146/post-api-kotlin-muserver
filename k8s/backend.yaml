@@ -1,0 +1,75 @@
+# Backend: Kotlin mu-server (port 8090)
+# Mirror java-projects/post-api/k8s/deployment.yaml pattern:
+#   - aliyun registry + __IMAGE_TAG__ placeholder (substituted by pipeline)
+#   - aliyun-registry-cred imagePullSecret
+#   - ClusterIP service (frontend proxies through it)
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: post-api-backend
+  namespace: post-api
+  labels:
+    app: post-api-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: post-api-backend
+  template:
+    metadata:
+      labels:
+        app: post-api-backend
+    spec:
+      imagePullSecrets:
+        - name: aliyun-registry-cred
+      containers:
+        - name: backend
+          image: crpi-e2h2rfj3kunrwe5n.cn-hangzhou.personal.cr.aliyuncs.com/mike-docker-registry/post-api-backend:__IMAGE_TAG__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8090
+          env:
+            # PG 在 host (192.168.232.128:5432) — K8s 节点能直达
+            - name: DB_URL
+              value: "jdbc:postgresql://__DB_HOST__:5432/__DB_DATABASE__"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASSWORD
+              value: "postgres"   # 与 host PG 一致；生产应来自 Secret
+            - name: JAVA_OPTS
+              value: "-Xms256m -Xmx512m"
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8090
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            limits:
+              memory: "768Mi"
+              cpu: "500m"
+            requests:
+              memory: "384Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: post-api-backend-svc
+  namespace: post-api
+spec:
+  selector:
+    app: post-api-backend
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090
+  type: ClusterIP

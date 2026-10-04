@@ -1,0 +1,63 @@
+# Frontend: Express (port 5174) + vanilla TS dist
+# NodePort 30080 — Playwright from host (192.168.232.128:30080)
+# imagePullSecrets mirrors backend.yaml pattern
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: post-api-frontend
+  namespace: post-api
+  labels:
+    app: post-api-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: post-api-frontend
+  template:
+    metadata:
+      labels:
+        app: post-api-frontend
+    spec:
+      imagePullSecrets:
+        - name: aliyun-registry-cred
+      containers:
+        - name: frontend
+          image: crpi-e2h2rfj3kunrwe5n.cn-hangzhou.personal.cr.aliyuncs.com/mike-docker-registry/post-api-frontend:__IMAGE_TAG__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5174
+          env:
+            - name: PORT
+              value: "5174"
+            # 指向 K8s 内部 backend service（DNS：post-api-backend-svc.post-api.svc.cluster.local）
+            - name: BACKEND_URL
+              value: "http://post-api-backend-svc:8090"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5174
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: post-api-frontend-svc
+  namespace: post-api
+spec:
+  selector:
+    app: post-api-frontend
+  ports:
+    - name: http
+      port: 5174
+      targetPort: 5174
+      nodePort: 30080
+  type: NodePort

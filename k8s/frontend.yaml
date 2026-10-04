@@ -1,6 +1,6 @@
 # Frontend: Express (port 5174) + vanilla TS dist
 # NodePort 30080 — Playwright from host (192.168.232.128:30080)
-# imagePullSecrets mirrors backend.yaml pattern
+# imagePullPolicy: Never — images come from Jenkins agent's local docker daemon
 
 apiVersion: apps/v1
 kind: Deployment
@@ -19,18 +19,15 @@ spec:
       labels:
         app: post-api-frontend
     spec:
-      imagePullSecrets:
-        - name: aliyun-registry-cred
       containers:
         - name: frontend
-          image: crpi-e2h2rfj3kunrwe5n.cn-hangzhou.personal.cr.aliyuncs.com/mike-docker-registry/post-api-frontend:__IMAGE_TAG__
-          imagePullPolicy: Always
+          image: post-api-frontend:__IMAGE_TAG__
+          imagePullPolicy: Never
           ports:
             - containerPort: 5174
           env:
             - name: PORT
               value: "5174"
-            # 指向 K8s 内部 backend service（DNS：post-api-backend-svc.post-api.svc.cluster.local）
             - name: BACKEND_URL
               value: "http://post-api-backend-svc:8090"
           readinessProbe:

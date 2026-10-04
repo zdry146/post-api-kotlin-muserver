@@ -1,8 +1,6 @@
 # Backend: Kotlin mu-server (port 8090)
-# Mirror java-projects/post-api/k8s/deployment.yaml pattern:
-#   - aliyun registry + __IMAGE_TAG__ placeholder (substituted by pipeline)
-#   - aliyun-registry-cred imagePullSecret
-#   - ClusterIP service (frontend proxies through it)
+# Strategy: local images built into Jenkins agent's docker daemon (which shares
+# host's /var/run/docker.sock) → K8s pulls via imagePullPolicy: Never.
 
 apiVersion: apps/v1
 kind: Deployment
@@ -21,22 +19,19 @@ spec:
       labels:
         app: post-api-backend
     spec:
-      imagePullSecrets:
-        - name: aliyun-registry-cred
       containers:
         - name: backend
-          image: crpi-e2h2rfj3kunrwe5n.cn-hangzhou.personal.cr.aliyuncs.com/mike-docker-registry/post-api-backend:__IMAGE_TAG__
-          imagePullPolicy: Always
+          image: post-api-backend:__IMAGE_TAG__
+          imagePullPolicy: Never
           ports:
             - containerPort: 8090
           env:
-            # PG 在 host (192.168.232.128:5432) — K8s 节点能直达
             - name: DB_URL
               value: "jdbc:postgresql://__DB_HOST__:5432/__DB_DATABASE__"
             - name: DB_USER
               value: "postgres"
             - name: DB_PASSWORD
-              value: "postgres"   # 与 host PG 一致；生产应来自 Secret
+              value: "postgres"
             - name: JAVA_OPTS
               value: "-Xms256m -Xmx512m"
           readinessProbe:

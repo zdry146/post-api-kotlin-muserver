@@ -1,9 +1,8 @@
 // Combined CI/CD for post-api-kotlin-muserver (Kotlin mu-server + vanilla TS frontend).
-// Pipeline-from-SCM (Jenkins built-in): Jenkins checks out this repo, runs THIS file.
+// Pipeline-from-SCM: Jenkins checks out this repo, runs THIS file.
 //
-// Strategy: build images into Jenkins agent's Docker daemon (which has
-// /var/run/docker.sock from host) → K8s pulls with imagePullPolicy: Never.
-// Skips aliyun registry push (TLS handshake issue in this env).
+// Build images into Jenkins agent's local docker daemon (host docker.sock mounted).
+// K8s pulls with imagePullPolicy: Never.
 //
 // MODE=ci   → build backend/frontend + tag images locally
 // MODE=cd   → apply manifests + wait + E2E
@@ -24,14 +23,20 @@ pipeline {
     environment {
         BACKEND_IMAGE  = 'post-api-backend'
         FRONTEND_IMAGE = 'post-api-frontend'
+        // Hardcode absolute paths so we always know cwd after multi-stage sh blocks.
+        WORKSPACE = "${env.WORKSPACE}"
     }
     stages {
-        stage('Build backend (gradle)') {
+        stage('Build backend (gradle, sync, clean)') {
             when { expression { params.MODE == 'ci' || params.MODE == 'both' } }
             steps {
+                // `clean` forces a full rebuild — avoids stale UP-TO-DATE results
+                // hiding source changes. `--no-daemon` ensures synchronous exit.
+                // Single-command sh (no `cd` inside) keeps cwd = $WORKSPACE.
                 sh '''
                 set -euo pipefail
-                ~/.local/gradle/gradle-8.10.2/bin/gradle build -x test --no-daemon
+                cd "$WORKSPACE"
+                ~/.local/gradle/gradle-8.10.2/bin/gradle clean build -x test --no-daemon
                 '''
             }
         }
@@ -40,10 +45,11 @@ pipeline {
             steps {
                 sh '''
                 set -euo pipefail
-                cd frontend
+                cd "$WORKSPACE/frontend"
                 npm ci
                 npm run build:fast
-                cd ..
+                cd "$WORKSPACE"
+                pwd && ls dist 2>/dev/null || ls frontend/dist
                 '''
             }
         }
@@ -52,9 +58,13 @@ pipeline {
             steps {
                 sh '''
                 set -euo pipefail
-                docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} -t ${BACKEND_IMAGE}:latest .
-                docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -t ${FRONTEND_IMAGE}:latest ./frontend
-                docker images | grep -E "post-api-(backend|frontend)"
+                cd "$WORKSPACE"
+                # Verify Dockerfile exists (defensive — was the previous bug)
+                test -f Dockerfile || { echo "ERROR: Dockerfile missing in $WORKSPACE"; ls -la; exit 1; }
+                test -f frontend/Dockerfile || { echo "ERROR: frontend/Dockerfile missing"; ls -la frontend/; exit 1; }
+                docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} -t ${BACKEND_IMAGE}:latest -f Dockerfile .
+                docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -t ${FRONTEND_IMAGE}:latest -f frontend/Dockerfile frontend
+                docker images | grep -E "post-api-(backend|frontend)" || true
                 '''
             }
         }
@@ -72,7 +82,12 @@ pipeline {
             steps {
                 sh '''
                 set -euo pipefail
+                cd "$WORKSPACE"
                 kubectl apply -f k8s/namespace.yaml || true
+                # Delete old post-api (Java) deployment if it exists, so our new
+                # post-api-backend / post-api-frontend can take over the namespace.
+                kubectl -n ${NAMESPACE} delete deployment post-api --ignore-not-found
+                kubectl -n ${NAMESPACE} delete service post-api-svc --ignore-not-found
                 # Substitute __IMAGE_TAG__ / __DB_HOST__ / __DB_DATABASE__ placeholders
                 for f in k8s/backend.yaml k8s/frontend.yaml; do
                     sed -e "s|__IMAGE_TAG__|${DEPLOY_TAG}|g" \\
@@ -98,11 +113,8 @@ pipeline {
             steps {
                 sh '''
                 set -euo pipefail
-                cd frontend
-                # Frontend exposed via NodePort 30080 on the host
+                cd "$WORKSPACE/frontend"
                 export PLAYWRIGHT_BASE_URL=http://192.168.232.128:30080
-                # Skip running curl DELETE cleanup — describe.serial creates fresh posts
-                # and TEST_TITLE uses Date.now() so re-runs are isolated.
                 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
                 export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/snap/bin/chromium
                 npx playwright test --reporter=list

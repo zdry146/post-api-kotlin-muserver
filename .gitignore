@@ -50,3 +50,6 @@ AGENT_TEAMS_SPEC.md
 plan.md
 review.md
 .omo/
+
+# CodeGraph (knowledge graph index, generated)
+.codegraph/

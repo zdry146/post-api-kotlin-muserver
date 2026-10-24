@@ -35,8 +35,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
 
     // ============ JSON ============
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2")
-    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.2")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.12")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.12")
 
     // ============ JDBC + 连接池 ============
     implementation("org.postgresql:postgresql:42.7.4")

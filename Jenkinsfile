@@ -40,7 +40,12 @@ pipeline {
                 # with bin/<app> shell script + lib/*.jar deps. Plain 'build' task
                 # only produces a sources jar without Main-Class manifest — Docker
                 # can't run `java -jar app.jar` on it.
-                ~/.local/gradle/gradle-8.10.2/bin/gradle clean installDist -x test --no-daemon
+                # `test` is listed explicitly: installDist -> assemble does NOT
+                # depend on test, so without it the suite never runs (the old
+                # `-x test` was hiding that). Tests bind an ephemeral port
+                # (withHttpPort(0)) and use an in-memory H2, so they are
+                # self-contained on the agent.
+                ~/.local/gradle/gradle-8.10.2/bin/gradle clean test installDist --no-daemon
                 '''
             }
         }
